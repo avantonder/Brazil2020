@@ -20,6 +20,7 @@ library(ade4)
 library(tidygraph)
 library(ggraph)
 library(igraph)
+library(ggtree)
 
 #############################
 ### Set working directory ###
@@ -95,9 +96,9 @@ BrazilMetadataClustersWrite <- BrazilMetadataClusters %>%
 
 write_csv(BrazilMetadataClustersWrite, "New_data/Brazil_new_iTOL_metadata.csv")
 
-############################################################################
-## Create a plot of geographic coordinates and colour by fastbaps cluster ##
-############################################################################
+########################################################################################
+## Create a plot of geographic coordinates and colour by fastbaps cluster (Figure 2B) ##
+########################################################################################
 
 BrazilCoordPlot <- ggplot(data = BrazilMetadataClusters) +
   geom_point(aes(x = Longitude, y = Latitude, color = as.factor(fastbaps))) +
@@ -126,9 +127,9 @@ BrazilFarmCoords <- BrazilMetadataClusters %>%
   group_by(Herd) %>% 
   filter(row_number()==1)
 
-#########################################
-## Plot map and overlay herd locations ##
-#########################################
+######################################################
+## Plot map and overlay herd locations (Figure 2A ) ##
+######################################################
 
 BrazilMapPlot <- ggmap(Brazilstamenmap) + 
   geom_point(data = BrazilMetadataClusters, aes(x = Longitude, y = Latitude, color = Herd), alpha =0.5, fill = NA) +
@@ -201,7 +202,7 @@ BrazilSNPsGeoDists <- BrazilPWsnpsDecon
 #########################################################################
 
 BrazilMetadataClustersGeoDists <- BrazilMetadataClusters %>% 
-  select(Lane_id, Isolate_ID, Herd, Spoligotype, Clonal_complex, Longitude, Latitude,  fastbaps)
+  select(Lane_id, Isolate_ID, Herd, Animal, Spoligotype, Clonal_complex, Longitude, Latitude,  fastbaps)
 
 ###########################################################
 ## Add metadata for each taxon in pairwise SNP dataframe ##
@@ -223,13 +224,14 @@ BrazilSNPsGeoDists <- BrazilSNPsGeoDists %>%
 #################################################################
 
 BrazilSNPsGeoDistsFiltered <- BrazilSNPsGeoDists %>%
-  select(Taxon1, Taxon2, Isolate_ID.x, Isolate_ID.y, Herd.x, Herd.y, fastbaps.x, fastbaps.y, dist, geo_dist) %>% 
+  select(Taxon1, Taxon2, Isolate_ID.x, Isolate_ID.y, Animal.x,  Animal.y,Herd.x, Herd.y, fastbaps.x, fastbaps.y, dist, geo_dist) %>% 
   mutate(herd_match = ifelse(Herd.x == Herd.y, paste("Within herd"), paste("Between herd"))) %>% 
-  mutate(baps_match = ifelse(fastbaps.x == fastbaps.y, paste("Same fastbaps"), paste("Different fastbaps")))
+  mutate(baps_match = ifelse(fastbaps.x == fastbaps.y, paste("Same fastbaps"), paste("Different fastbaps"))) %>% 
+  mutate(animal_match = ifelse(Animal.x == Animal.y, paste("Within host"), paste("Between host")))
 
-####################################################################
-## Plot histogram of pairwise SNP distances, colour by herd_match ##
-####################################################################
+################################################################################
+## Plot histogram of pairwise SNP distances, colour by herd_match (Figure 3A) ##
+################################################################################
 
 BrazilSNPHistogram <- ggplot(data = BrazilSNPsGeoDistsFiltered, aes(x = dist, fill = herd_match)) + 
   geom_histogram(bins = 200, alpha = 0.8, position = "identity") + 
@@ -246,9 +248,9 @@ BrazilSNPHistogram <- ggplot(data = BrazilSNPsGeoDistsFiltered, aes(x = dist, fi
 BrazilSNPsGeoDistsFilteredSameFarm <- BrazilSNPsGeoDistsFiltered %>% 
   filter(herd_match == "Within herd")
 
-####################################################
-## Create box plot of pairwise distances per herd ##
-####################################################
+################################################################
+## Create box plot of pairwise distances per herd (Figure 3B) ##
+################################################################
 
 BrazilSNPsFarmBox <- ggplot(data = BrazilSNPsGeoDistsFilteredSameFarm, 
                             aes(x = Herd.x, y = dist, fill = Herd.x)) + 
@@ -307,7 +309,7 @@ for(cluster in unique(BrazilSNPsGeoDistsFilteredSameBAPS$fastbaps.x)){
 
 ############################################################
 ## Plot pairwise SNP distance against geographic distance ##
-## and facet wrap by BAPS cluster                         ##
+## and facet wrap by BAPS cluster (Figure 3C)             ##
 ############################################################
 
 BrazilDistancePlot <- ggplot(data = BrazilSNPsGeoDistsFilteredSameBAPS) + 
@@ -317,6 +319,19 @@ BrazilDistancePlot <- ggplot(data = BrazilSNPsGeoDistsFilteredSameBAPS) +
   theme_bw() +
   facet_wrap(~fastbaps.x, ncol = 2) + 
   theme(legend.position = "none")
+
+###################################
+## Examine within host diversity ##
+###################################
+
+BrazilSNPsGeoDistsFilteredSameHost <- BrazilSNPsGeoDistsFiltered %>% 
+  filter(animal_match == "Within host") %>% 
+  select(Taxon1, Taxon2, Animal.x, Herd.x, dist, animal_match)
+
+BrazilSNPsGeoDistsFilteredSameHostSummary <- BrazilSNPsGeoDistsFilteredSameHost %>% 
+  group_by(animal.x) %>% 
+  summarize(min_snp_dist = min(dist)) %>% 
+  summarize(max_snp_dist = max(dist)) 
 
 ###############################################################
 ### Create network of all samples using SNP threshold of 15 ###
@@ -365,7 +380,7 @@ BrazilMetadataClusters_15_snpsNetworks <- BrazilMetadataClusters_15_snps %>%
 
 ##########################################################
 ## Plot the network coloured by host and clonal complex ##
-## as shape                                             ##
+## as shape (Figure 3D)                                 ##
 ##########################################################
 
 Brazil_15_snp_network_map_host <- ggraph(Brazil_15_snp_routes, layout = "nicely") + 
@@ -438,9 +453,9 @@ BrazilSNPsGeoDistsFiltered_edges_15_snpZoom <- BrazilSNPsGeoDistsFiltered_edges_
 
 Brazil_15_snp_routesZoom <- tbl_graph(nodes = BrazilMetadataClusters_15_snpsNetworksZoom, edges = BrazilSNPsGeoDistsFiltered_edges_15_snpZoom, directed = TRUE)
 
-#########################################################
-## Plot network clusters 8, 18 and 20 coloured by host ##
-#########################################################
+#####################################################################
+## Plot network clusters 8, 18 and 20 coloured by host (Figure 3E) ##
+#####################################################################
 
 Brazil_15_snp_network_map_hostZoom <- ggraph(Brazil_15_snp_routesZoom, layout = "nicely") + 
   geom_edge_link(aes(label = dist), edge_colour = 'black', edge_alpha = 0.8, edge_width = 0.4, 
@@ -448,3 +463,59 @@ Brazil_15_snp_network_map_hostZoom <- ggraph(Brazil_15_snp_routesZoom, layout = 
   geom_node_point(aes(colour = Herd), size = 4) + 
   theme_graph() + 
   labs(colour = "Herd")
+
+#############################
+### Eu2 specific analyses ###
+#############################
+
+##############################################
+## Read in TreeTime time-scaled newick tree ##
+##############################################
+
+EU2treetime <- read.tree("New_data/nextstrain_all_Eu2_290720_timetree.nwk")
+
+###########################################
+## Read in metadata for all Eu2 isolates ##
+###########################################
+
+EU2Metadata <- read_csv("New_data/EU2_metadata.csv")
+
+###########################################################
+## Create new dataframe ready for adding metadata strips ##
+## using ggtree                                          ##
+###########################################################
+
+EU2MetadataDF <- as.data.frame(EU2Metadata[,3:5])
+
+rownames(EU2MetadataDF) = EU2Metadata$isolate_id
+
+##########################################################
+## Relabel tips change sequence file ids to isolate ids ##
+##########################################################
+
+EU2treetimeTipLabels <- as.data.frame(EU2treetime$tip.label)
+
+EU2treetimeTipLabelsRelabelled <- EU2treetimeTipLabels %>% 
+  left_join(EU2Metadata[,1:2], by = c("EU2treetime$tip.label" = "lane_id"))
+
+EU2treetime$tip.label <- EU2treetimeTipLabelsRelabelled$isolate_id
+
+#################################################################
+## Plot TreeTime tree adding lines for time period 1200 - 2020 ##
+#################################################################
+
+EU2TTggtree <- ggtree(EU2treetime, right=TRUE, mrsd="2019-01-01") +
+  geom_tiplab(size = 1, align = TRUE, offset = 5) +
+  theme_tree2() +
+  scale_x_continuous(breaks=seq(1200, 2020, 50)) +
+  theme(panel.grid.major = element_line(color="black", size=.2),
+        panel.grid.minor   = element_line(color="grey", size=.2),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank()) +
+  xlim_tree(2020)
+
+########################################################
+## Add metadata strips to above tree plot (Figure 4B) ##
+########################################################
+
+EU2TTggtreeMeta <- gheatmap(EU2TTggtree, EU2MetadataDF, colnames_position = "top", font.size=3, offset=25, width=0.15, colnames_angle = 90, hjust = 0)
